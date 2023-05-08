@@ -1,4 +1,4 @@
-package top.novashen;
+package top.novashen.ycf;
 
 import org.jsoup.nodes.Document;
 import org.jsoup.Jsoup;

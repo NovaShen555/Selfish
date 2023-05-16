@@ -4,29 +4,70 @@ import java.util.*;
 
 public class Main {
 
+    // 优先队列的比较函数
     public static Comparator<Point> cmp = (o1, o2) -> {
         return o2.fn - o1.fn; //大的在前
     };
 
+    // 点的数据结构
     public static class Point {
+        // gn是到这个点的路径的花费
+        // fn是估计的整个路径的花费
         public int x,y,gn,fn;
         public Point parent;
-        //hn可以随时计算
+        //hn是估计函数可以随时计算
 
         public Point(int x, int y) {
             this.x = x;
             this.y = y;
         }
     }
+    // 施法的数据结构
+    public static class Magic {
+        // 迭代权值e下降至t时添加障碍物
+        public int t;
+        // 障碍物坐标
+        public int x;
+        public int y;
+
+        public Magic(int t, int x, int y) {
+            this.t = t;
+            this.x = x;
+            this.y = y;
+        }
+    }
+    // 施法队列
+    // 若施法时正好在目标坐标上 则施法取消
+    public static List<Magic> magicList=new ArrayList<>();
+    // 询问map
+    public static List<Integer> queryList=new ArrayList<>();
+    // NM行列 T障碍物个数(无用) S-start F-final
     public static int N,M,T,SX,SY,FX,FY;
+    // E 权值
+    public static int E;
+    // P 施法次数
+    public static int P;
+    // K 询问次数
+    public static int K;
     //地图 1为障碍物 2为closeSet的点 3为openSet的点
     public static int [][]map;
     //已选中的点
     public static List<Point> closeSet=new ArrayList<>();
-    //未选中的点
+    //未选中的点 优先队列
     public static PriorityQueue<Point> openSet= new PriorityQueue<>(cmp);
-    //路径
+    //路径结果
     public static List<Point> path = new ArrayList<>();
+
+    // 初始化
+    public static void init() {
+        closeSet.clear();
+        openSet.clear();
+        path.clear();
+        for (int i = 0; i <= N; i++)
+            for (int j = 0; j <= M; j++)
+                if (map[i][j] == 2 || map[i][j] == 3)
+                    map[i][j] = 0;
+    }
 
     //读入数据
     public static void read(){
@@ -47,6 +88,34 @@ public class Main {
         }
     }
 
+    // project的读入
+    public static void readPro(){
+        Scanner scanner=new Scanner(System.in);
+        N = scanner.nextInt();
+        M = scanner.nextInt();
+        E = scanner.nextInt();
+        SX = 1;
+        SY = 1;
+        FX = N;
+        FY = M;
+        //读入障碍物
+        map = new int[N+1][M+1];
+        for(int i = 0; i < N; i++) {
+            String tmp = scanner.next();
+            for (int j = 0; j < M; j++)
+                if ( '1' == tmp.charAt(j))
+                    map[i+1][j+1] = 1;
+        }
+        //读入施法次数
+        P = scanner.nextInt();
+        for (int i = 0; i < P; i++)
+            magicList.add(new Magic(scanner.nextInt(),scanner.nextInt(),scanner.nextInt()));
+        //读入询问次数
+        K = scanner.nextInt();
+        for (int i = 0; i < K; i++)
+            queryList.add(scanner.nextInt());
+    }
+
     //openJudge的读入
     public static void readOpenJudge(){
         Scanner scanner=new Scanner(System.in);
@@ -65,19 +134,13 @@ public class Main {
         FY = scanner.nextInt();
     }
 
-    //计算曼哈顿距离
-    public static int manhattan(int x,int y){
-        return Math.abs(x-FX)+Math.abs(y-FY);
-    }
-
-    //判断是不是终点
-    public static Boolean isFinal(Point point){
-        return point.x == FX && point.y == FY;
-    }
 
     public static void main(String []args){
         // read();
         // readOpenJudge();
+
+        readPro();
+
         //输出map
         for (int i = 1; i <= N; i++) {
             for (int j = 1; j <= M; j++)
@@ -85,12 +148,41 @@ public class Main {
             System.out.println();
         }
 
+        while (E > 0) {
+            //初始化
+            init();
+            //施法
+            updateMap();
+            // A*
+            aStar();
+
+            if (queryList.contains(E))
+                //输出路径
+                printPath();
+
+            // 更新起点
+            SX = path.get(path.size() - 2).x;
+            SY = path.get(path.size() - 2).y;
+            E --;
+
+            System.out.println("E = " + E);
+            System.out.println("SX = " + SX +" SY = " + SY);
+        }
+    }
+
+    // 施法
+    public static void updateMap(){
+        for (Magic magic : magicList) {
+            if (magic.t == E && SX != magic.x && SY != magic.y)
+                map[magic.x][magic.y] = 1;
+        }
+    }
+
+    // A*
+    public static void aStar() {
         //将起点加入openSet
         openSet.add(new Point(SX,SY));
 
-        int openJudgeAns = -1;
-
-        int[] curPoint = new int[2];
         while(true){
             //如果openSet不为空，则从openSet中选取优先级最高的节点
             if (!openSet.isEmpty()) {
@@ -99,7 +191,6 @@ public class Main {
                     //如果选取的节点是终点，则输出路径
 
                     while (chose != null) {
-                        openJudgeAns ++;
                         path.add(chose);
                         chose = chose.parent;
                     }
@@ -112,21 +203,26 @@ public class Main {
                 for (Point nearPoint : getNearPoint(chose)){
                     nearPoint.parent = chose;
                     nearPoint.gn = chose.gn + 1;
-                    nearPoint.fn = nearPoint.gn + manhattan(nearPoint.x, nearPoint.y);
+                    nearPoint.fn = nearPoint.gn + manhattan(nearPoint.x, nearPoint.y, E);
                     openSet.add(nearPoint);
                     map[nearPoint.x][nearPoint.y] = 3;
                 }
             }
         }
-        // 打印路径
-        for (int i = path.size() - 1; i >= 0; i--) {
-            System.out.println(path.get(i).x + " " + path.get(i).y);
-        }
-        System.out.println(openJudgeAns);
+    }
+
+    //计算曼哈顿距离
+    public static int manhattan(int x,int y,int e){
+        return (Math.abs(x-FX)+Math.abs(y-FY))*e;
+    }
+
+    //判断是不是终点
+    public static Boolean isFinal(Point point){
+        return point.x == FX && point.y == FY;
     }
 
     private static List<Point> getNearPoint(Point curPoint) {
-        int[][] d = {{0,1},{1,0},{0,-1},{-1,0}};
+        int[][] d = {{0,1},{1,0},{0,-1},{-1,0},{1,1},{1,-1},{-1,-1},{-1,1}};
         List<Point> resultSet = new ArrayList<>();
         int[] curP = {curPoint.x, curPoint.y};
         for (int[] i : d) {
@@ -150,6 +246,14 @@ public class Main {
 
     private static boolean isClose(int[] i) {
         return map[i[0]][i[1]] == 2;
+    }
+
+    // 打印路径
+    public static void printPath() {
+        for (int i = path.size() - 1; i >= 0; i--) {
+            System.out.print(path.get(i).x + " " + path.get(i).y + " ");
+        }
+        System.out.println("\n"+path.size());
     }
 
 }
